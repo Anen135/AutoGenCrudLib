@@ -10,3 +10,4 @@ public class EntityBase
     [Attributes.Freeze]
     public string CreatedAt { get; set; } = DateTime.Now.ToString();
 }
+
