@@ -79,10 +79,31 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         foreach (var item in items)
         {
             var cb = new CheckBox { IsChecked = existingIds.Contains(item.Id) };
-            var nameLabel = new Label { Text = item.Name, VerticalOptions = LayoutOptions.Center };
+
+            var nameLabel = new Label
+            {
+                Text = item.Name,
+                VerticalOptions = LayoutOptions.Center,
+            };
+            var tapGesture = new TapGestureRecognizer();
+            tapGesture.Tapped += async (_, __) =>
+            {
+                try
+                {
+                    var pageType = typeof(EntityDetailPage<>).MakeGenericType(mmattr.ForeignType);
+                    var page = (Page)Activator.CreateInstance(pageType, item);
+                    await Navigation.PushAsync(page);
+                }
+                catch (Exception ex)
+                {
+                    await CrudContext.UI.ShowAlert("Error", $"Не удалось открыть детали: {ex.Message}", "OK");
+                }
+            };
+            nameLabel.GestureRecognizers.Add(tapGesture);
 
             var h = new HorizontalStackLayout
             {
+                Spacing = 5,
                 Children = { cb, nameLabel }
             };
 
@@ -90,26 +111,10 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
             stack.Children.Add(h);
         }
 
-        var openListBtn = new Button
-        {
-            Text = "Open List View",
-            HeightRequest = 40,
-            BackgroundColor = Colors.Transparent,
-            TextColor = Colors.Purple
-        };
-
-        openListBtn.Clicked += async (_, __) =>
-        {
-            var pageType = typeof(EntityListPage<>).MakeGenericType(mmattr.ForeignType);
-            var page = (Page)Activator.CreateInstance(pageType);
-            await Navigation.PushAsync(page);
-        };
-
-        stack.Children.Add(openListBtn);
-
         manytomany[prop] = checkboxes;
         return stack;
     }
+
 
 
     private View GetForeign(PropertyInfo prop, object val, ForeignAttribute foreignattr)
@@ -200,9 +205,30 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
     private View GetDigital(PropertyInfo prop, ref object val)
     {
         if (val == null || val.ToString() == null) val = "--";
-        var entry = new Entry { Text = val.ToString() };
+        var label = new Label
+        {
+            Text = prop.Name,
+            VerticalOptions = LayoutOptions.Center,
+            WidthRequest = 120
+        };
+        var entry = new Entry
+        {
+            Text = val.ToString(),
+            Keyboard = Keyboard.Numeric
+        };
         numeric[prop] = entry;
-        return new HorizontalStackLayout { Children = { new Label { Text = $"{prop.Name}" }, entry } };
+        var grid = new Grid
+        {
+            ColumnDefinitions =
+        {
+            new ColumnDefinition { Width = GridLength.Auto },
+            new ColumnDefinition { Width = GridLength.Star }
+        },
+            Margin = new Thickness(10, 4),
+        };
+        grid.Add(label, 0, 0);
+        grid.Add(entry, 1, 0);
+        return grid;
     }
 
     private View GetEntry(PropertyInfo prop, ref object val)
