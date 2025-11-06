@@ -15,7 +15,6 @@ public interface IAccessControlProvider
     bool CanDelete<T>();
     bool CanEdit<T>();
     bool CanView<T>();
-    bool CanOpen<T>();
 }
 
 public interface IUIProvider

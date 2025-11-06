@@ -5,6 +5,7 @@ public static class CrudContext
     public static Abstractions.IDatabaseProvider Database { get; private set; }
     public static Abstractions.IAccessControlProvider Access { get; private set; }
     public static Abstractions.IUIProvider UI { get; private set; }
+    public static Models.EntityBase CurrentUser = null;
 
     public static void Init(
         Abstractions.IDatabaseProvider database,

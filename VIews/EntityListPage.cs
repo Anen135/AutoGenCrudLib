@@ -1,8 +1,9 @@
-﻿using System.Reflection;
+﻿using AutoGenCrudLib.Models;
+using System.Reflection;
 
 namespace AutoGenCrudLib.Views;
 
-public class EntityListPage<T> : ContentPage where T : new()
+public class EntityListPage<T> : ContentPage where T : EntityBase, new()
 {
     private CollectionView CV;
 
@@ -55,7 +56,9 @@ public class EntityListPage<T> : ContentPage where T : new()
 
     private void Add()
     {
-        CrudContext.Database.Connection.Insert(new T());
+        var entity = new T();
+        CrudContext.Database.Connection.Insert(entity);
+        CrudContext.Database.Connection.Insert(new Audit { Name = $"{CrudContext.CurrentUser?.Name ?? "Unknown"} - Open {entity.Name}", Description = $"{typeof(T)}" });
         Refresh();
     }
 
