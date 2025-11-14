@@ -16,6 +16,7 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
     private Dictionary<PropertyInfo, Picker> foreigns = new();
     private Dictionary<PropertyInfo, CheckBox> checkboxes = new();
     private Dictionary<PropertyInfo, List<CheckBox>> manytomany = new();
+    private Dictionary<PropertyInfo, object> files = new();
 
     public EntityDetailPage(T entity)
     {
@@ -25,7 +26,7 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         Content = BuildView();
     }
 
-    private View BuildView()
+    public virtual View BuildView()
     {
         var VSL = new VerticalStackLayout
         {
@@ -49,12 +50,13 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         return new ScrollView { Content = VSL };
     }
 
-    private View GetLine(PropertyInfo prop)
+    public View GetLine(PropertyInfo prop)
     {
         var val = prop.GetValue(Entity);
         if (prop.GetCustomAttribute<PrimaryKeyAttribute>() != null || prop.GetCustomAttribute<FreezeAttribute>() != null) return GetLabel(prop, ref val);
         else if (prop.GetCustomAttribute<ManyToManyAttribute>() is ManyToManyAttribute mmattr) return GetManyToMany(prop, val, mmattr);
         else if (prop.GetCustomAttribute<ForeignAttribute>() is not null and var foreignattr) return GetForeign(prop, val, foreignattr);
+        else if (prop.GetCustomAttribute<FileAttribute>() != null && prop.PropertyType == typeof(string)) return GetFileField(prop, val);
         else if (prop.PropertyType == typeof(string)) return GetEntry(prop, ref val);
         else if (prop.PropertyType == typeof(double)) return GetDigital(prop, ref val);
         else if (prop.PropertyType.IsEnum) return GetEnumerate(prop, val);
@@ -62,7 +64,78 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         else return new Label { Text = $"{prop.Name} : {val?.ToString() ?? "Unexpected"}" };
     }
 
-    private View GetManyToMany(PropertyInfo prop, object val, ManyToManyAttribute mmattr)
+    public Grid GetFileField(PropertyInfo prop, object val)
+    {
+        if (val == null) val = "";
+
+        var label = new Label
+        {
+            Text = prop.Name,
+            VerticalOptions = LayoutOptions.Center,
+            WidthRequest = 120
+        };
+
+        var selectButton = new Button { Text = "Select File" };
+        var openButton = new Button { Text = "Open File" };
+
+        selectButton.Clicked += async (_, __) =>
+        {
+            try
+            {
+                var result = await FilePicker.Default.PickAsync();
+                if (result != null)
+                {
+                    val = result.FullPath;
+                    prop.SetValue(Entity, val);
+                    files[prop] = val;
+                }
+            }
+            catch (Exception ex)
+            {
+                await CrudContext.UI.ShowAlert("Error", $"File selection failed: {ex.Message}", "OK");
+            }
+        };
+
+        openButton.Clicked += async (_, __) =>
+        {
+            try
+            {
+                var filePath = val?.ToString();
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    await Launcher.Default.OpenAsync(filePath);
+                }
+                else
+                {
+                    await CrudContext.UI.ShowAlert("Info", "File path is empty", "OK");
+                }
+            }
+            catch (Exception ex)
+            {
+                await CrudContext.UI.ShowAlert("Error", $"Cannot open file: {ex.Message}", "OK");
+            }
+        };
+
+        var grid = new Grid
+        {
+            ColumnDefinitions =
+        {
+            new ColumnDefinition { Width = GridLength.Auto },
+            new ColumnDefinition { Width = GridLength.Auto },
+            new ColumnDefinition { Width = GridLength.Auto }
+        },
+            Margin = new Thickness(10, 4)
+        };
+
+        grid.Add(label, 0, 0);
+        grid.Add(selectButton, 1, 0);
+        grid.Add(openButton, 2, 0);
+
+        return grid;
+    }
+
+
+    public VerticalStackLayout GetManyToMany(PropertyInfo prop, object val, ManyToManyAttribute mmattr)
     {
         var items = CrudContext.Database.ForeignMap[mmattr.ForeignType]();
 
@@ -117,7 +190,7 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
 
 
 
-    private View GetForeign(PropertyInfo prop, object val, ForeignAttribute foreignattr)
+    public Grid GetForeign(PropertyInfo prop, object val, ForeignAttribute foreignattr)
     {
         var items = CrudContext.Database.ForeignMap[foreignattr.ForeignType]();
         var picker = new Picker
@@ -141,10 +214,11 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
             BackgroundColor = Colors.Transparent,
             FontAttributes = FontAttributes.Bold,
             Padding = new Thickness(0),
-            VerticalOptions = LayoutOptions.Fill, 
+            VerticalOptions = LayoutOptions.Fill,
             HorizontalOptions = LayoutOptions.Fill,
             CornerRadius = 0,
             BorderWidth = 0,
+            IsEnabled = picker.SelectedItem is not null,
             BorderColor = Colors.Transparent,
         };
 
@@ -182,14 +256,14 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
 
 
 
-    private View GetCheckbox(PropertyInfo prop, object val)
+    public HorizontalStackLayout GetCheckbox(PropertyInfo prop, object val)
     {
         var checkbox = new CheckBox { IsChecked = val is bool b && b };
         checkboxes[prop] = checkbox;
         return new HorizontalStackLayout { Children = { new Label { Text = $"{prop.Name}" }, checkbox } };
     }
 
-    private View GetEnumerate(PropertyInfo prop, object val)
+    public Picker GetEnumerate(PropertyInfo prop, object val)
     {
         var picker = new Picker
         {
@@ -202,7 +276,7 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         return picker;
     }
 
-    private View GetDigital(PropertyInfo prop, ref object val)
+    public Grid GetDigital(PropertyInfo prop, ref object val)
     {
         if (val == null || val.ToString() == null) val = "--";
         var label = new Label
@@ -231,7 +305,7 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         return grid;
     }
 
-    private View GetEntry(PropertyInfo prop, ref object val)
+    public Grid GetEntry(PropertyInfo prop, ref object val)
     {
         if (val == null || val.ToString() == null) val = "--";
         var label = new Label
@@ -261,45 +335,39 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
     }
 
 
-    private static View GetLabel(PropertyInfo prop, ref object val)
+    public static Label GetLabel(PropertyInfo prop, ref object val)
     {
         if (val == null || val.ToString() == null) val = "--";
         return new Label { Text = $"{SplitPascalCase(prop.Name)}: {val}", FontAttributes = FontAttributes.Bold };
     }
 
-    private async void Save()
+    public async void Save()
     {
         try
         {
             foreach (var (key, val) in entries)
-            {
                 key.SetValue(Entity, val.Text);
-            }
             foreach (var (key, val) in numeric)
-            {
                 key.SetValue(Entity, double.Parse(val.Text));
-            }
             foreach (var (key, val) in pickers)
-            {
                 key.SetValue(Entity, val.SelectedItem);
-            }
+            foreach (var (key, val) in checkboxes)
+                key.SetValue(Entity, val.IsChecked);
+            foreach (var (key, val) in files)
+                key.SetValue(Entity, val?.ToString());
             foreach (var (key, val) in foreigns)
             {
                 if (val.SelectedItem is Models.EntityBase entity)
                     key.SetValue(Entity, entity.Id);
             }
-            foreach (var (key, val) in checkboxes)
-            {
-                key.SetValue(Entity, val.IsChecked);
-            }
-            foreach (var (key, list) in manytomany)
+            foreach (var (key, val) in manytomany)
             {
                 var items = CrudContext.Database.ForeignMap[key.GetCustomAttribute<ManyToManyAttribute>()!.ForeignType]();
 
                 var selectedIds = new List<int>();
-                for (int i = 0; i < list.Count; i++)
+                for (int i = 0; i < val.Count; i++)
                 {
-                    if (list[i].IsChecked)
+                    if (val[i].IsChecked)
                         selectedIds.Add(items[i].Id);
                 }
 
@@ -318,12 +386,12 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         }
     }
 
-    private void Refresh()
+    public void Refresh()
     {
         Content = BuildView();
     }
 
-    private async void Delete()
+    public async void Delete()
     {
         var answer = await CrudContext.UI.ShowConfirm("Delete", "Are you sure?", "Yes", "Noooo");
         if (!answer) return;
@@ -332,7 +400,7 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         await Navigation.PopAsync();
     }
 
-    private static string SplitPascalCase(string input)
+    public static string SplitPascalCase(string input)
     {
         if (string.IsNullOrEmpty(input))
             return input;

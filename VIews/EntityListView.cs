@@ -3,7 +3,7 @@ using AutoGenCrudLib.Extensions;
 
 namespace AutoGenCrudLib.Views;
 
-public class EntityListView<T> : ContentView where T : AutoGenCrudLib.Models.EntityBase, new()
+public class EntityListView<T> : ContentView where T : Models.EntityBase, new()
 {
     public int ColumnWidth { get; set; } = 250;
     public EntityListView()
@@ -25,13 +25,26 @@ public class EntityListView<T> : ContentView where T : AutoGenCrudLib.Models.Ent
         openBtn.Clicked += (s, _) => Open(s);
         copyBtn.Clicked += (s, _) => Copy(s);
 
-        openBtn.IsEnabled = CrudContext.Access.CanEdit<T>();
-        copyBtn.IsEnabled = CrudContext.Access.CanEdit<T>() && CrudContext.Access.CanCreate<T>();
+        openBtn.IsVisible = CrudContext.Access.CanEdit<T>();
+        copyBtn.IsVisible = CrudContext.Access.CanEdit<T>() && CrudContext.Access.CanCreate<T>();
         foreach (var prop in Props)
         {
             var label = new Label();
+            if (prop.GetCustomAttribute<Attributes.FileAttribute>() != null && prop.PropertyType == typeof(string))
+            {
+                label.BindingContextChanged += (_, __) =>
+                {
+                    if (label.BindingContext is not T ctx)
+                    {
+                        label.Text = $"{prop.Name}: --";
+                        return;
+                    }
 
-            if (prop.GetCustomAttribute<Attributes.ForeignAttribute>() is Attributes.ForeignAttribute foreignAttr)
+                    var val = prop.GetValue(ctx)?.ToString();
+                    label.Text = $"{prop.Name}: {(string.IsNullOrEmpty(val) ? "--" : Path.GetFileName(val))}";
+                };
+            }
+            else if (prop.GetCustomAttribute<Attributes.ForeignAttribute>() is Attributes.ForeignAttribute foreignAttr)
             {
                 label.BindingContextChanged += (_, __) =>
                 {
@@ -67,11 +80,6 @@ public class EntityListView<T> : ContentView where T : AutoGenCrudLib.Models.Ent
         grid.Add(SL, 0, 0);
         grid.Add(buttons, 1, 0);
         Content = grid;
-    }
-
-    private void OpenBtn_Clicked(object sender, EventArgs e)
-    {
-        throw new NotImplementedException();
     }
 
     public async void Open(object s)
