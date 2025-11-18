@@ -1,4 +1,5 @@
-﻿using SQLite;
+﻿
+using SQLite;
 using System.Reflection;
 
 namespace AutoGenCrudLib.Extensions;
@@ -15,8 +16,7 @@ public static class SqliteExtensions
         foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             if (!prop.CanRead || !prop.CanWrite) continue;
-            if ((prop.GetCustomAttribute<PrimaryKeyAttribute>() != null
-                 && prop.GetCustomAttribute<AutoIncrementAttribute>() != null) || prop.GetCustomAttribute<UniqueAttribute>() != null)
+            if ((prop.GetCustomAttribute<PrimaryKeyAttribute>() != null && prop.GetCustomAttribute<AutoIncrementAttribute>() != null) || prop.GetCustomAttribute<UniqueAttribute>() != null || prop.GetCustomAttribute<Attributes.FreezeAttribute>() != null)
                 continue;
 
             var value = prop.GetValue(entity);

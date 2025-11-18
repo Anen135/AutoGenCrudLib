@@ -23,23 +23,27 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
         };
         var refreshButton = new Button { Text = "Refresh" };
         var addButton = new Button { Text = "Add" };
+        var filterButton = new Button { Text = "Filter" };
+
         var clearButton = new Button { Text = "Clear All", BackgroundColor = Colors.Red };
         var exportButton = new Button { Text = "Export", BackgroundColor = Colors.Green };
         var importButton = new Button { Text = "Import", BackgroundColor = Colors.Green };
 
         refreshButton.Clicked += (_, __) => Refresh();
         addButton.Clicked += (_, __) => Add();
+        filterButton.Clicked += async (_, __) => await OpenFilterPage();
         exportButton.Clicked += async (_, __) => await ExportCsv();
         importButton.Clicked += async (_, __) => await ImportCsv();
-
         clearButton.Clicked += async (_, __) => await ClearAll();
+
         addButton.IsVisible = CrudContext.Access.CanCreate<T>();
         clearButton.IsVisible = CrudContext.Access.CanDelete<T>();
+        importButton.IsVisible = CrudContext.Access.CanEdit<T>() && addButton.IsVisible && clearButton.IsVisible;
         var buttonPanel = new HorizontalStackLayout
         {
             Padding = new Thickness(10, 5),
             Spacing = 10,
-            Children = { refreshButton, addButton, clearButton, exportButton, importButton }
+            Children = { refreshButton, addButton, clearButton, exportButton, importButton, filterButton }
         };
         var grid = new Grid
         {
@@ -79,6 +83,18 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
 
         await DisplayAlert("Delete", "Delete completed", "OK");
     }
+
+    private async Task OpenFilterPage()
+    {
+        await Navigation.PushAsync(new FilterEditorPage<T>((Func<T, bool> predicate, Func<IEnumerable<T>, IEnumerable<T>> sorting) => CV.ItemsSource = sorting(CrudContext.Database.Connection.Table<T>().ToList().Where(predicate)).ToList()));
+    }
+
+    public void ApplyFilter(Func<T, bool> predicate, Func<IEnumerable<T>, IEnumerable<T>> sorting)
+    {
+        CV.ItemsSource = sorting(CrudContext.Database.Connection.Table<T>().ToList().Where(predicate)).ToList();
+    }
+
+
 
     private async Task ShareScv()
     {

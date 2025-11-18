@@ -15,7 +15,7 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
     private Dictionary<PropertyInfo, Picker> pickers = new();
     private Dictionary<PropertyInfo, Picker> foreigns = new();
     private Dictionary<PropertyInfo, CheckBox> checkboxes = new();
-    private Dictionary<PropertyInfo, List<CheckBox>> manytomany = new();
+    private Dictionary<PropertyInfo, List<int>> manytomany = new();
     private Dictionary<PropertyInfo, object> files = new();
 
     public EntityDetailPage(T entity)
@@ -40,6 +40,7 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         }
         var saveBtn = new Button { Text = "Save" };
         var deleteBtn = new Button { Text = "Delete" };
+        deleteBtn.IsVisible = CrudContext.Access.CanDelete<T>();
         var refreshBtn = new Button { Text = "Refresh" };
         saveBtn.Clicked += (_, __) => Save();
         deleteBtn.Clicked += (_, __) => Delete();
@@ -135,60 +136,108 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
     }
 
 
+
     public VerticalStackLayout GetManyToMany(PropertyInfo prop, object val, ManyToManyAttribute mmattr)
     {
         var items = CrudContext.Database.ForeignMap[mmattr.ForeignType]();
 
-        var existingIds = (val as string ?? "")
+        var selectedIds = (val as string ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => int.TryParse(s, out var id) ? id : -1)
-            .Where(id => id > 0)
-            .ToHashSet();
+            .Select(s => int.TryParse(s, out int id) ? id : -1)
+            .ToList();
 
-        var label = new Label { Text = $"{prop.Name}" };
-        var stack = new VerticalStackLayout { Children = { label } };
-        var checkboxes = new List<CheckBox>();
+        manytomany[prop] = selectedIds;
 
-        foreach (var item in items)
+        var label = new Label { Text = prop.Name };
+
+        CollectionView cv = new CollectionView();
+
+        cv.ItemTemplate = new DataTemplate(() =>
         {
-            var cb = new CheckBox { IsChecked = existingIds.Contains(item.Id) };
-
             var nameLabel = new Label
             {
-                Text = item.Name,
-                VerticalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
             };
-            var tapGesture = new TapGestureRecognizer();
-            tapGesture.Tapped += async (_, __) =>
+            nameLabel.SetBinding(Label.TextProperty, "Name");
+
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += async (s, e) =>
             {
-                try
+                if (nameLabel.BindingContext is Models.EntityBase be)
                 {
-                    var pageType = typeof(EntityDetailPage<>).MakeGenericType(mmattr.ForeignType);
-                    var page = (Page)Activator.CreateInstance(pageType, item);
-                    await Navigation.PushAsync(page);
-                }
-                catch (Exception ex)
-                {
-                    await CrudContext.UI.ShowAlert("Error", $"Не удалось открыть детали: {ex.Message}", "OK");
+                    try
+                    {
+                        var pageType = typeof(EntityDetailPage<>)
+                            .MakeGenericType(mmattr.ForeignType);
+
+                        var page = (Page)Activator.CreateInstance(pageType, be);
+                        await Navigation.PushAsync(page);
+                    }
+                    catch (Exception ex)
+                    {
+                        await CrudContext.UI.ShowAlert(
+                            "Error",
+                            $"Не удалось открыть детали: {ex.Message}",
+                            "OK");
+                    }
                 }
             };
-            nameLabel.GestureRecognizers.Add(tapGesture);
+            nameLabel.GestureRecognizers.Add(tap);
 
-            var h = new HorizontalStackLayout
+            var deleteBtn = new Button
             {
-                Spacing = 5,
-                Children = { cb, nameLabel }
+                Text = "X",
+                BackgroundColor = Colors.Transparent,
+                BorderWidth = 0,
+                FontAttributes = FontAttributes.Bold
             };
 
-            checkboxes.Add(cb);
-            stack.Children.Add(h);
-        }
+            deleteBtn.Clicked += (_, __) =>
+            {
+                if (deleteBtn.BindingContext is Models.EntityBase be)
+                {
+                    selectedIds.Remove(be.Id);
+                    cv.ItemsSource = selectedIds.Select(id => items.First(i => i.Id == id)).ToList();
+                }
+            };
 
-        manytomany[prop] = checkboxes;
-        return stack;
+            return new HorizontalStackLayout
+            {
+                Spacing = 10,
+                Children = { nameLabel, deleteBtn }
+            };
+        });
+
+        cv.ItemsSource = selectedIds
+            .Select(id => items.First(i => i.Id == id))
+            .ToList();
+
+        var picker = new Picker
+        {
+            Title = "Добавить...",
+            ItemsSource = items,
+            ItemDisplayBinding = new Binding("Name")
+        };
+
+        picker.SelectedIndexChanged += (_, __) =>
+        {
+            if (picker.SelectedItem is Models.EntityBase be)
+            {
+                selectedIds.Add(be.Id);
+
+                cv.ItemsSource = selectedIds
+                    .Select(id => items.First(i => i.Id == id))
+                    .ToList();
+
+                picker.SelectedIndex = -1;
+            }
+        };
+
+        return new VerticalStackLayout
+        {
+            Children = { label, cv, picker }
+        };
     }
-
-
 
     public Grid GetForeign(PropertyInfo prop, object val, ForeignAttribute foreignattr)
     {
@@ -360,18 +409,9 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
                 if (val.SelectedItem is Models.EntityBase entity)
                     key.SetValue(Entity, entity.Id);
             }
-            foreach (var (key, val) in manytomany)
+            foreach (var (key, ids) in manytomany)
             {
-                var items = CrudContext.Database.ForeignMap[key.GetCustomAttribute<ManyToManyAttribute>()!.ForeignType]();
-
-                var selectedIds = new List<int>();
-                for (int i = 0; i < val.Count; i++)
-                {
-                    if (val[i].IsChecked)
-                        selectedIds.Add(items[i].Id);
-                }
-
-                key.SetValue(Entity, string.Join(",", selectedIds));
+                key.SetValue(Entity, string.Join(",", ids));
             }
 
 
