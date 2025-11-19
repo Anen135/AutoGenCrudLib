@@ -95,18 +95,6 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
         CV.ItemsSource = sorting(CrudContext.Database.Connection.Table<T>().ToList().Where(predicate)).ToList();
     }
 
-    private async Task OpenFilterPage()
-    {
-        await Navigation.PushAsync(new FilterEditorPage<T>((Func<T, bool> predicate, Func<IEnumerable<T>, IEnumerable<T>> sorting) => CV.ItemsSource = sorting(CrudContext.Database.Connection.Table<T>().ToList().Where(predicate)).ToList()));
-    }
-
-    public void ApplyFilter(Func<T, bool> predicate, Func<IEnumerable<T>, IEnumerable<T>> sorting)
-    {
-        CV.ItemsSource = sorting(CrudContext.Database.Connection.Table<T>().ToList().Where(predicate)).ToList();
-    }
-
-
-
     private async Task ShareScv()
     {
         try
