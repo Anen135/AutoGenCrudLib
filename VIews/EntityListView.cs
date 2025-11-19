@@ -86,16 +86,20 @@ public class EntityListView<T> : ContentView where T : Models.EntityBase, new()
     {
         var btn = (Button)s;
         var entity = (T)btn.BindingContext;
-        CrudContext.Database.Connection.Insert(new Models.Audit { Name = $"{CrudContext.CurrentUser?.Name ?? "Unknown"} - Open {entity.Name}", Description = $"{typeof(T)}" });
-        await Navigation.PushAsync(new EntityDetailPage<T>(entity));
+
+        var page = EntityDetailPageFactory.CreatePage(entity);
+        await Navigation.PushAsync(page);
     }
 
     public async void Copy(object s)
     {
         var btn = (Button)s;
         var entity = (T)btn.BindingContext;
+
         var copyEntity = (T)entity.DuplicateRecord();
-        CrudContext.Database.Connection.Insert(new Models.Audit { Name = $"{CrudContext.CurrentUser?.Name ?? "Unknown"} - Copy {copyEntity.Name}", Description = $"{typeof(T)}" });
-        await Navigation.PushAsync(new EntityDetailPage<T>(copyEntity));
+
+        var page = EntityDetailPageFactory.CreatePage(copyEntity);
+        await Navigation.PushAsync(page);
     }
+
 }

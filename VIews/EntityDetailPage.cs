@@ -1,6 +1,8 @@
 ﻿using AutoGenCrudLib.Attributes;
+using AutoGenCrudLib.Extensions;
 using SQLite;
 using System.Reflection;
+using System.Text;
 
 namespace AutoGenCrudLib.Views;
 
@@ -8,15 +10,15 @@ namespace AutoGenCrudLib.Views;
 
 public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new()
 {
-    private T Entity;
-    private PropertyInfo[] properties;
-    private Dictionary<PropertyInfo, Entry> entries = new();
-    private Dictionary<PropertyInfo, Entry> numeric = new();
-    private Dictionary<PropertyInfo, Picker> pickers = new();
-    private Dictionary<PropertyInfo, Picker> foreigns = new();
-    private Dictionary<PropertyInfo, CheckBox> checkboxes = new();
-    private Dictionary<PropertyInfo, List<int>> manytomany = new();
-    private Dictionary<PropertyInfo, object> files = new();
+    public T Entity;
+    public PropertyInfo[] properties;
+    public Dictionary<PropertyInfo, Entry> entries = new();
+    public Dictionary<PropertyInfo, Entry> numeric = new();
+    public Dictionary<PropertyInfo, Picker> pickers = new();
+    public Dictionary<PropertyInfo, Picker> foreigns = new();
+    public Dictionary<PropertyInfo, CheckBox> checkboxes = new();
+    public Dictionary<PropertyInfo, List<int>> manytomany = new();
+    public Dictionary<PropertyInfo, object> files = new();
 
     public EntityDetailPage(T entity)
     {
@@ -468,5 +470,29 @@ public class EntityDetailPage<T> : ContentPage where T : Models.EntityBase, new(
         }
 
         return result.ToString();
+    }
+
+    public virtual string ToMarkdown()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {typeof(T).Name} Details");
+        sb.AppendLine();
+
+        foreach (var prop in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (!prop.CanRead) continue;
+
+            var value = prop.GetValue(this);
+            string text = value?.ToString() ?? "—";
+
+            sb.AppendLine($"**{prop.Name}**: {text}");
+        }
+
+        return sb.ToString();
+    }
+
+    public virtual string GetEntityMarkdown()
+    {
+        return Entity.ToMarkdown();
     }
 }
