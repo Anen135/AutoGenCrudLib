@@ -4,8 +4,7 @@ using QuestPDF.Markdown;
 
 namespace AutoGenCrudLib.Views;
 
-public class EntityDetailPdfPage<T> : EntityDetailPage<T>
-    where T : Models.EntityBase, new()
+public class EntityDetailPdfPage<T> : EntityDetailPage<T> where T : Models.EntityBase, new()
 {
     public EntityDetailPdfPage(T entity) : base(entity) { }
 
@@ -36,7 +35,7 @@ public class EntityDetailPdfPage<T> : EntityDetailPage<T>
         try
         {
             // Markdown-разметка сущности
-            var markdown = GetEntityMarkdown();
+            var markdown = Entity.ToMarkdown();
 
             // Подготовка QuestPDF
             var fileName = $"{typeof(T).Name}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
@@ -62,11 +61,5 @@ public class EntityDetailPdfPage<T> : EntityDetailPage<T>
         {
             await CrudContext.UI.ShowAlert("PDF Error", ex.Message, "OK");
         }
-    }
-
-    /// Получаем Markdown через расширение
-    public override string GetEntityMarkdown()
-    {
-        return Entity.ToMarkdown();
     }
 }
