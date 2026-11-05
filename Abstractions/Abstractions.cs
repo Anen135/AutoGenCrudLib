@@ -34,10 +34,19 @@ public interface IAccessControlProvider
     bool CanDelete<T>();
     bool CanEdit<T>();
     bool CanView<T>();
+    bool CanFilter<T>();
 }
 
-public class AccesControlBase : IAccessControlProvider
+public class AccessControlBase : IAccessControlProvider
 {
+    /// <summary>
+    /// Deprecated misspelled alias of <see cref="AccessControlBase"/> (kept for backward compatibility).
+    /// </summary>
+    [Obsolete("Use AccessControlBase instead. This misspelled alias will be removed in a future version.")]
+    public class AccesControlBase : AccessControlBase
+    {
+    }
+
     public virtual bool CanCreate<T>()
     {
         return true;

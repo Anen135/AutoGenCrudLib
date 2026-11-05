@@ -19,11 +19,11 @@ AutoGenCrudLib is a lightweight library designed to automate the creation of CRU
   * `[Freeze]` — marks a field as read-only
 * Simplified record creation, editing, and deletion
 * Automatic database binding through `CrudContext`
-* Flexible integration with providers:
+* Flexible integration with providers (interfaces + ready-to-use base classes):
 
-  * `IDatabaseProvider`
-  * `IAccessControlProvider`
-  * `IUIProvider`
+  * `IDatabaseProvider` — implemented by `DatabaseProvider`
+  * `IAccessControlProvider` — implemented by `AccessControlBase`
+  * `IUIProvider` — implemented by `UIBase`
 
 ---
 
@@ -37,21 +37,41 @@ dotnet add package SP1
 
 ## Initialization
 
-Before use, initialize the library context:
+Before use, initialize the library context (for example in `MauiProgram.CreateMauiApp`):
 
 ```csharp
+using AutoGenCrudLib;
+using AutoGenCrudLib.Abstractions;
+
+var database = new DatabaseProvider("crud.db3");
+database.CreateForeign<Category>(); // register each [Foreign]/[ManyToMany] target table
+database.CreateForeign<Tag>();
+
+var ui = new UIBase(
+    showAlert: async (title, message, confirm) =>
+        await Application.Current.MainPage.DisplayAlert(title, message, confirm),
+    showConfirm: async (title, message, confirm, cancel) =>
+        await Application.Current.MainPage.DisplayAlert(title, message, confirm, cancel));
+
 CrudContext.Init(
-    database: new MyDatabaseProvider(),
-    access: new MyAccessControlProvider(),
-    ui: new MyUIProvider()
-);
+    database: database,
+    access: new AccessControlBase(),
+    ui: ui,
+    currentUser: user); // optional, used for the audit trail
 ```
 
-These providers implement the following interfaces:
+`CrudContext.Init` parameters (all required except `currentUser`):
 
-* `IDatabaseProvider` — database access
+* `database: DatabaseProvider` — SQLite connection and foreign-key maps (`Connection`, `ForeignMap`, `CreateForeign<T>()`)
+* `access: AccessControlBase` — access control management; subclass it and override `CanCreate<T>`, `CanView<T>`, `CanEdit<T>`, `CanDelete<T>`, `CanFilter<T>` (all return `true` by default)
+* `ui: UIBase` — user interaction (`ShowAlert`, `ShowConfirm`); pass your `DisplayAlert` delegates to its constructor
+* `currentUser: EntityBase` (optional) — recorded in `Audit` entries as the acting user
+
+The provider types implement the following interfaces:
+
+* `IDatabaseProvider` — database access (`ForeignMap`, `Connection`)
 * `IAccessControlProvider` — access control management
-* `IUIProvider` — user interaction (e.g., `DisplayAlert`, `DisplayConfirm`)
+* `IUIProvider` — user interaction (e.g., `ShowAlert`, `ShowConfirm`)
 
 ---
 
@@ -184,8 +204,20 @@ AutoGenCrudLib/
 │   ├── EntityDetailPage.cs
 │   └── EntityListView.cs
 │
-├── CrudContext.cs
-└── Models/ (extensions)
+├── Abstractions/
+│   └── Abstractions.cs   (IDatabaseProvider, DatabaseProvider,
+│                          IAccessControlProvider, AccessControlBase,
+│                          IUIProvider, UIBase)
+│
+├── Models/
+│   ├── EntityBase.cs
+│   └── Audit.cs
+│
+├── Extensions/
+│   ├── ManyToManyExtensions.cs  (namespace SP12.Model)
+│   └── Filters/…
+│
+└── CrudContext.cs
 ```
 
 ---
@@ -193,12 +225,12 @@ AutoGenCrudLib/
 ## Dependencies
 
 * **.NET MAUI**
-* **SQLite-net** (via `SQLiteAttribute`)
-* Your custom provider implementations:
+* **SQLite-net** (`sqlite-net-pcl`)
+* Your custom provider implementations (or use the built-in base classes):
 
-  * `IDatabaseProvider`
-  * `IAccessControlProvider`
-  * `IUIProvider`
+  * `IDatabaseProvider` / `DatabaseProvider`
+  * `IAccessControlProvider` / `AccessControlBase`
+  * `IUIProvider` / `UIBase`
 
 ---
 
