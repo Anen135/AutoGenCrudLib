@@ -39,14 +39,6 @@ public interface IAccessControlProvider
 
 public class AccessControlBase : IAccessControlProvider
 {
-    /// <summary>
-    /// Deprecated misspelled alias of <see cref="AccessControlBase"/> (kept for backward compatibility).
-    /// </summary>
-    [Obsolete("Use AccessControlBase instead. This misspelled alias will be removed in a future version.")]
-    public class AccesControlBase : AccessControlBase
-    {
-    }
-
     public virtual bool CanCreate<T>()
     {
         return true;

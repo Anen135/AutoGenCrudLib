@@ -199,10 +199,11 @@ AutoGenCrudLib/
 │   ├── FreezeAttribute.cs
 │   └── ManyToManyAttribute.cs
 │
-├── Views/
+├── VIews/                      (note: the folder is spelled "VIews" in the repo)
 │   ├── EntityListPage.cs
 │   ├── EntityDetailPage.cs
-│   └── EntityListView.cs
+│   ├── EntityListView.cs
+│   └── ... (FilterEditorPage, UniversalSearchPage, PDF/QR pages, ...)
 │
 ├── Abstractions/
 │   └── Abstractions.cs   (IDatabaseProvider, DatabaseProvider,
