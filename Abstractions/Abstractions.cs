@@ -17,8 +17,14 @@ public class DatabaseProvider : IDatabaseProvider
         Connection = new SQLiteConnection(ConnectionString);
         Connection.CreateTable<Audit>();
     }
+    /// <summary>
+    /// Creates the SQLite table for <typeparamref name="T"/> if it does not exist yet
+    /// and registers the lookup delegate used to resolve [Foreign]/[ManyToMany] values.
+    /// Safe to call on every app start (uses CREATE TABLE IF NOT EXISTS semantics).
+    /// </summary>
     public void CreateForeign<T>() where T : EntityBase, new()
     {
+        Connection.CreateTable<T>();
         ForeignMap[typeof(T)] = () => Connection.Table<T>().ToList<EntityBase>();
     }
 
@@ -34,7 +40,21 @@ public interface IAccessControlProvider
     bool CanDelete<T>();
     bool CanEdit<T>();
     bool CanView<T>();
-    bool CanFilter<T>();
+
+    // Not a required interface member: existing implementations written before this
+    // method existed keep compiling. Callers should go through AccessControlBase.CanFilter<T>()
+    // or the extension below, which defaults to true when the type does not implement it.
+}
+
+public static class AccessControlProviderExtensions
+{
+    /// <summary>
+    /// Filter-permission check for any <see cref="IAccessControlProvider"/>.
+    /// Returns true unless the provider derives from <see cref="AccessControlBase"/>
+    /// and overrides <see cref="AccessControlBase.CanFilter{T}"/>.
+    /// </summary>
+    public static bool CanFilter<T>(this IAccessControlProvider provider)
+        => provider is not AccessControlBase baseProvider || baseProvider.CanFilter<T>();
 }
 
 public class AccessControlBase : IAccessControlProvider

@@ -37,14 +37,17 @@ dotnet add package SP1
 
 ## Initialization
 
-Before use, initialize the library context (for example in `MauiProgram.CreateMauiApp`):
+Before use, initialize the library context (for example in `MauiProgram.CreateMauiApp`).
+`CreateForeign<T>()` also creates the SQLite table for `T` if it does not exist yet, so every entity
+type used with the generated pages (the root entity and all `[Foreign]`/`[ManyToMany]` targets) must be registered:
 
 ```csharp
 using AutoGenCrudLib;
 using AutoGenCrudLib.Abstractions;
 
 var database = new DatabaseProvider("crud.db3");
-database.CreateForeign<Category>(); // register each [Foreign]/[ManyToMany] target table
+database.CreateForeign<Product>();  // root entities opened via EntityListPage<T>/EntityDetailPage<T> too
+database.CreateForeign<Category>(); // each [Foreign]/[ManyToMany] target type
 database.CreateForeign<Tag>();
 
 var ui = new UIBase(
@@ -53,19 +56,37 @@ var ui = new UIBase(
     showConfirm: async (title, message, confirm, cancel) =>
         await Application.Current.MainPage.DisplayAlert(title, message, confirm, cancel));
 
+// Deny-by-default access control: AccessControlBase returns true for everything,
+// so subclass it and explicitly grant only what the signed-in user is allowed to do.
+class RoleAccess : AccessControlBase
+{
+    private readonly User _user;
+    public RoleAccess(User user) => _user = user;
+
+    public override bool CanView<T>()   => _user.IsAuthenticated;
+    public override bool CanFilter<T>() => _user.IsAuthenticated;
+    public override bool CanCreate<T>() => _user.IsAdmin;
+    public override bool CanEdit<T>()   => _user.IsAdmin;
+    public override bool CanDelete<T>() => _user.IsAdmin;
+}
+
+var user = new User { Name = "admin", IsAuthenticated = true, IsAdmin = true };
+
 CrudContext.Init(
     database: database,
-    access: new AccessControlBase(),
+    access: new RoleAccess(user),
     ui: ui,
-    currentUser: user); // optional, used for the audit trail
+    currentUser: user); // optional, recorded in Audit entries
 ```
 
-`CrudContext.Init` parameters (all required except `currentUser`):
+`CrudContext.Init` parameters (all required except `currentUser`; each accepts any implementation of the corresponding provider interface):
 
-* `database: DatabaseProvider` — SQLite connection and foreign-key maps (`Connection`, `ForeignMap`, `CreateForeign<T>()`)
-* `access: AccessControlBase` — access control management; subclass it and override `CanCreate<T>`, `CanView<T>`, `CanEdit<T>`, `CanDelete<T>`, `CanFilter<T>` (all return `true` by default)
-* `ui: UIBase` — user interaction (`ShowAlert`, `ShowConfirm`); pass your `DisplayAlert` delegates to its constructor
+* `database: IDatabaseProvider` — SQLite connection and foreign-key maps (`Connection`, `ForeignMap`, `CreateForeign<T>()`); built-in implementation: `DatabaseProvider`
+* `access: IAccessControlProvider` — access control management; derive from `AccessControlBase` and override `CanCreate<T>`, `CanView<T>`, `CanEdit<T>`, `CanDelete<T>`, `CanFilter<T>` (all return `true` by default — prefer a deny-by-default subclass as above)
+* `ui: IUIProvider` — user interaction (`ShowAlert`, `ShowConfirm`); pass your `DisplayAlert` delegates to the `UIBase` constructor
 * `currentUser: EntityBase` (optional) — recorded in `Audit` entries as the acting user
+
+All arguments are validated before the context is updated, and the provider set is published atomically, so a failed or concurrent `Init` call cannot leave the context half-initialized.
 
 The provider types implement the following interfaces:
 

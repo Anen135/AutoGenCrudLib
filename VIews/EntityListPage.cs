@@ -1,4 +1,5 @@
-﻿using AutoGenCrudLib.Models;
+﻿using AutoGenCrudLib.Abstractions;
+using AutoGenCrudLib.Models;
 using System.Reflection;
 
 
@@ -75,14 +76,14 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
 
     private async Task ClearAll()
     {
-        var answer = await DisplayAlert("Delete", "Are you sure?", "Yes", "No");
+        var answer = await CrudContext.UI.ShowConfirm("Delete", "Are you sure?", "Yes", "No");
         if (!answer) return;
 
         CrudContext.Database.Connection.DeleteAll<T>();
         CrudContext.Database.Connection.Insert(new Audit { Name = $"{CrudContext.CurrentUser?.Name ?? "Unknown"} - ClearAll", Description = $"{typeof(T)}" });
         Refresh();
 
-        await DisplayAlert("Delete", "Delete completed", "OK");
+        await CrudContext.UI.ShowAlert("Delete", "Delete completed", "OK");
     }
 
     private async Task OpenFilterPage()
@@ -102,7 +103,7 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
             var items = CrudContext.Database.Connection.Table<T>().ToList();
             if (items.Count == 0)
             {
-                await DisplayAlert("Export", "No data to export", "OK");
+                await CrudContext.UI.ShowAlert("Export", "No data to export", "OK");
                 return;
             }
             var props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
@@ -133,7 +134,7 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"CSV export failed: {ex.Message}", "OK");
+            await CrudContext.UI.ShowAlert("Error", $"CSV export failed: {ex.Message}", "OK");
         }
     }
 
@@ -144,7 +145,7 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
             var items = CrudContext.Database.Connection.Table<T>().ToList();
             if (items.Count == 0)
             {
-                await DisplayAlert("Export", "No data to export", "OK");
+                await CrudContext.UI.ShowAlert("Export", "No data to export", "OK");
                 return;
             }
 
@@ -236,11 +237,11 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
 
             File.WriteAllText(filePath, sb.ToString());
 
-            await DisplayAlert("Export", $"Saved:\n{filePath}", "OK");
+            await CrudContext.UI.ShowAlert("Export", $"Saved:\n{filePath}", "OK");
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", ex.Message, "OK");
+            await CrudContext.UI.ShowAlert("Error", ex.Message, "OK");
         }
     }
 
@@ -270,7 +271,7 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
             var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             if (lines.Length < 2)
             {
-                await DisplayAlert("Import", "CSV file is empty or invalid", "OK");
+                await CrudContext.UI.ShowAlert("Import", "CSV file is empty or invalid", "OK");
                 return;
             }
 
@@ -357,11 +358,11 @@ public class EntityListPage<T> : ContentPage where T : EntityBase, new()
             // 5. Обновляем UI
             Refresh();
 
-            await DisplayAlert("Import", "CSV imported successfully", "OK");
+            await CrudContext.UI.ShowAlert("Import", "CSV imported successfully", "OK");
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"CSV import failed: {ex.Message}", "OK");
+            await CrudContext.UI.ShowAlert("Error", $"CSV import failed: {ex.Message}", "OK");
         }
     }
 }
