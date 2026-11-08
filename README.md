@@ -19,11 +19,11 @@ AutoGenCrudLib is a lightweight library designed to automate the creation of CRU
   * `[Freeze]` — marks a field as read-only
 * Simplified record creation, editing, and deletion
 * Automatic database binding through `CrudContext`
-* Flexible integration with providers:
+* Flexible integration with providers (interfaces + ready-to-use base classes):
 
-  * `IDatabaseProvider`
-  * `IAccessControlProvider`
-  * `IUIProvider`
+  * `IDatabaseProvider` — implemented by `DatabaseProvider`
+  * `IAccessControlProvider` — implemented by `AccessControlBase`
+  * `IUIProvider` — implemented by `UIBase`
 
 ---
 
@@ -37,21 +37,62 @@ dotnet add package SP1
 
 ## Initialization
 
-Before use, initialize the library context:
+Before use, initialize the library context (for example in `MauiProgram.CreateMauiApp`).
+`CreateForeign<T>()` also creates the SQLite table for `T` if it does not exist yet, so every entity
+type used with the generated pages (the root entity and all `[Foreign]`/`[ManyToMany]` targets) must be registered:
 
 ```csharp
+using AutoGenCrudLib;
+using AutoGenCrudLib.Abstractions;
+
+var database = new DatabaseProvider("crud.db3");
+database.CreateForeign<Product>();  // root entities opened via EntityListPage<T>/EntityDetailPage<T> too
+database.CreateForeign<Category>(); // each [Foreign]/[ManyToMany] target type
+database.CreateForeign<Tag>();
+
+var ui = new UIBase(
+    showAlert: async (title, message, confirm) =>
+        await Application.Current.MainPage.DisplayAlert(title, message, confirm),
+    showConfirm: async (title, message, confirm, cancel) =>
+        await Application.Current.MainPage.DisplayAlert(title, message, confirm, cancel));
+
+// Deny-by-default access control: AccessControlBase returns true for everything,
+// so subclass it and explicitly grant only what the signed-in user is allowed to do.
+class RoleAccess : AccessControlBase
+{
+    private readonly User _user;
+    public RoleAccess(User user) => _user = user;
+
+    public override bool CanView<T>()   => _user.IsAuthenticated;
+    public override bool CanFilter<T>() => _user.IsAuthenticated;
+    public override bool CanCreate<T>() => _user.IsAdmin;
+    public override bool CanEdit<T>()   => _user.IsAdmin;
+    public override bool CanDelete<T>() => _user.IsAdmin;
+}
+
+var user = new User { Name = "admin", IsAuthenticated = true, IsAdmin = true };
+
 CrudContext.Init(
-    database: new MyDatabaseProvider(),
-    access: new MyAccessControlProvider(),
-    ui: new MyUIProvider()
-);
+    database: database,
+    access: new RoleAccess(user),
+    ui: ui,
+    currentUser: user); // optional, recorded in Audit entries
 ```
 
-These providers implement the following interfaces:
+`CrudContext.Init` parameters (all required except `currentUser`; each accepts any implementation of the corresponding provider interface):
 
-* `IDatabaseProvider` — database access
+* `database: IDatabaseProvider` — SQLite connection and foreign-key maps (`Connection`, `ForeignMap`, `CreateForeign<T>()`); built-in implementation: `DatabaseProvider`
+* `access: IAccessControlProvider` — access control management; derive from `AccessControlBase` and override `CanCreate<T>`, `CanView<T>`, `CanEdit<T>`, `CanDelete<T>`, `CanFilter<T>` (all return `true` by default — prefer a deny-by-default subclass as above)
+* `ui: IUIProvider` — user interaction (`ShowAlert`, `ShowConfirm`); pass your `DisplayAlert` delegates to the `UIBase` constructor
+* `currentUser: EntityBase` (optional) — recorded in `Audit` entries as the acting user
+
+All arguments are validated before the context is updated, and the provider set is published atomically, so a failed or concurrent `Init` call cannot leave the context half-initialized.
+
+The provider types implement the following interfaces:
+
+* `IDatabaseProvider` — database access (`ForeignMap`, `Connection`)
 * `IAccessControlProvider` — access control management
-* `IUIProvider` — user interaction (e.g., `DisplayAlert`, `DisplayConfirm`)
+* `IUIProvider` — user interaction (e.g., `ShowAlert`, `ShowConfirm`)
 
 ---
 
@@ -179,13 +220,26 @@ AutoGenCrudLib/
 │   ├── FreezeAttribute.cs
 │   └── ManyToManyAttribute.cs
 │
-├── Views/
+├── VIews/                      (note: the folder is spelled "VIews" in the repo)
 │   ├── EntityListPage.cs
 │   ├── EntityDetailPage.cs
-│   └── EntityListView.cs
+│   ├── EntityListView.cs
+│   └── ... (FilterEditorPage, UniversalSearchPage, PDF/QR pages, ...)
 │
-├── CrudContext.cs
-└── Models/ (extensions)
+├── Abstractions/
+│   └── Abstractions.cs   (IDatabaseProvider, DatabaseProvider,
+│                          IAccessControlProvider, AccessControlBase,
+│                          IUIProvider, UIBase)
+│
+├── Models/
+│   ├── EntityBase.cs
+│   └── Audit.cs
+│
+├── Extensions/
+│   ├── ManyToManyExtensions.cs  (namespace SP12.Model)
+│   └── Filters/…
+│
+└── CrudContext.cs
 ```
 
 ---
@@ -193,12 +247,12 @@ AutoGenCrudLib/
 ## Dependencies
 
 * **.NET MAUI**
-* **SQLite-net** (via `SQLiteAttribute`)
-* Your custom provider implementations:
+* **SQLite-net** (`sqlite-net-pcl`)
+* Your custom provider implementations (or use the built-in base classes):
 
-  * `IDatabaseProvider`
-  * `IAccessControlProvider`
-  * `IUIProvider`
+  * `IDatabaseProvider` / `DatabaseProvider`
+  * `IAccessControlProvider` / `AccessControlBase`
+  * `IUIProvider` / `UIBase`
 
 ---
 

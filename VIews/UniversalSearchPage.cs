@@ -155,7 +155,7 @@ public class UniversalSearchPage : ContentPage
     {
         if (selectedModel == null || selectedProperty == null)
         {
-            DisplayAlert("Ошибка", "Выберите модель и свойство", "OK");
+            CrudContext.UI.ShowAlert("Ошибка", "Выберите модель и свойство", "OK");
             return;
         }
 
